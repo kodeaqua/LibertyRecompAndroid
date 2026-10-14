@@ -60,7 +60,13 @@ else
 fi
 echo "== building with $JOBS jobs"
 # Every behaviour-changing cvar must be in the hack registry (safe mode).
-"$PYTHON" "$REPO/glue/rexglue-sdk-main/gta4-recomp/tools/check_hack_registry.py" || { echo "!! hack registry check failed"; exit 1; }
+# The checker is not tracked in git (*.py is ignored there), so it is skipped when absent.
+HACK_CHECK="$REPO/glue/rexglue-sdk-main/gta4-recomp/tools/check_hack_registry.py"
+if [ -f "$HACK_CHECK" ]; then
+  "$PYTHON" "$HACK_CHECK" || { echo "!! hack registry check failed"; exit 1; }
+else
+  echo "== skipping hack registry check (check_hack_registry.py not in this checkout)"
+fi
 cmake --build "$BUILD_DIR" --target LibertyRecomp -- -j"$JOBS" || { echo "!! native build failed"; exit 1; }
 
 echo "== staging libraries"
