@@ -13,7 +13,7 @@ JOBS="${1:-$(( $(nproc) > 3 ? $(nproc) - 2 : 1 ))}"
 
 PYTHON="$(command -v python3 || command -v python)"
 "$PYTHON" "$APP_DIR/scripts/materialize_symlinks.py"
-"$APP_DIR/scripts/setup_host_tools.sh"
+bash "$APP_DIR/scripts/setup_host_tools.sh"
 
 # Snapdragon 865 and every Android 10+ arm64 device we target are ARMv8.2:
 # inline LSE atomics instead of outline-atomic calls, and native ELF TLS
