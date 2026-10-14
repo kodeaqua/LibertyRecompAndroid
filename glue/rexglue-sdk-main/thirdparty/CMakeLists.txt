@@ -191,6 +191,11 @@ target_compile_options(spdlog PRIVATE -w)
 set(SNAPPY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SNAPPY_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(SNAPPY_INSTALL ON CACHE BOOL "" FORCE)
+if(ANDROID)
+    # The probe passes here but the build has no 'crc' target feature (-march=armv8-a for
+    # devices without LSE), so __crc32cw cannot be inlined. snappy only compresses GPU traces.
+    set(SNAPPY_HAVE_NEON_CRC32 0 CACHE INTERNAL "" FORCE)
+endif()
 add_subdirectory(snappy)
 target_compile_options(snappy PRIVATE -w)
 if(APPLE AND IS_ARM64)
