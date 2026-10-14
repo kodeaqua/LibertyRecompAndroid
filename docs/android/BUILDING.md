@@ -56,6 +56,9 @@ Notes:
   Later builds are incremental.
 - **Delete the old APK before step 4.** Gradle's incremental packaging otherwise leaves tens of
   megabytes of dead space in it.
+- By default the native code is built for plain ARMv8.0 with outline atomics, so it also runs on
+  cores without LSE. `LSE=1 bash os/android/scripts/build_native.sh` builds ARMv8.2 with inline
+  atomics instead (Snapdragon 865-class and newer); changing it reconfigures and rebuilds everything.
 - Leave `STRIP` unset for development builds. Unstripped libraries let `ndk-stack`,
   `os/android/scripts/symbolize.sh` and simpleperf resolve symbols.
 - The build type defaults to `RelWithDebInfo` (`BUILD_TYPE=Release` builds into a separate

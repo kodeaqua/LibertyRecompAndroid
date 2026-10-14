@@ -15,10 +15,6 @@ PYTHON="$(command -v python3 || command -v python)"
 "$PYTHON" "$APP_DIR/scripts/materialize_symlinks.py"
 bash "$APP_DIR/scripts/setup_host_tools.sh"
 
-# Snapdragon 865 and every Android 10+ arm64 device we target are ARMv8.2:
-# inline LSE atomics instead of outline-atomic calls, and native ELF TLS
-# (API 29+) instead of emulated TLS. Both are hot in the guest thread.
-CPU_FLAGS="-march=armv8.2-a -fno-emulated-tls"
 # Host shader tools: Windows ships dxc.exe next to its DLLs, the Linux/macOS DXC
 # keeps the compiler in bin/ and the shared libraries in lib/.
 if [ "$HOST_OS" = "windows" ]; then
@@ -26,7 +22,18 @@ if [ "$HOST_OS" = "windows" ]; then
 else
   DXC_LIB_DIR="$REPO/out/host-tools/dxc/lib"
 fi
-if [ ! -f "$BUILD_DIR/build.ninja" ] || ! grep -q -- "-fno-emulated-tls" "$BUILD_DIR/CMakeCache.txt"; then
+# Native ELF TLS (API 29+) instead of emulated TLS: hot in the guest thread.
+# Atomics: by default the code runs on any ARMv8.0 core. -moutline-atomics picks
+# LSE (ARMv8.1+) or LL/SC at run time. Inline LSE instructions (ldadd, cas, ...)
+# raise SIGILL on cores without them (some budget Cortex-A53 SoCs) as soon as
+# the first atomic read-modify-write runs, i.e. while libs are loading. LSE=1
+# builds ARMv8.2 with inline LSE for Snapdragon 865-class devices and newer.
+if [ "${LSE:-0}" = "1" ]; then
+  CPU_FLAGS="-march=armv8.2-a -fno-emulated-tls"
+else
+  CPU_FLAGS="-march=armv8-a -moutline-atomics -fno-emulated-tls"
+fi
+if [ ! -f "$BUILD_DIR/build.ninja" ] || ! grep -qF -- "CMAKE_CXX_FLAGS:STRING=$CPU_FLAGS" "$BUILD_DIR/CMakeCache.txt"; then
   echo "== configuring $BUILD_TYPE in $BUILD_DIR"
   cmake -S "$REPO" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_C_FLAGS="$CPU_FLAGS" \
