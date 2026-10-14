@@ -1,7 +1,7 @@
 #!/bin/bash
 # Shared environment for the LibertyRecomp Android scripts. Source it:
 #   . os/android/scripts/env.sh
-# Written for Git Bash on Windows; every path can be overridden from outside.
+# Works in Git Bash on Windows and on Linux/macOS; every path can be overridden from outside.
 
 _scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export APP_DIR="$(cd "$_scripts_dir/.." && pwd)"
@@ -18,13 +18,26 @@ export ANDROID_HOME
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export NDK_VER="${NDK_VER:-29.0.14206865}"
 export ANDROID_NDK="${ANDROID_NDK:-$ANDROID_HOME/ndk/$NDK_VER}"
-export JAVA_HOME="${JAVA_HOME:-/c/Program Files/Android/Android Studio/jbr}"
+if [ -z "${JAVA_HOME:-}" ]; then
+  for _jdk in "/c/Program Files/Android/Android Studio/jbr" \
+              /usr/lib/jvm/java-17-openjdk-amd64 /usr/lib/jvm/java-17-openjdk \
+              /usr/lib/jvm/java-21-openjdk-amd64 /usr/lib/jvm/default-java \
+              "/opt/android-studio/jbr" "$HOME/android-studio/jbr" \
+              "/Applications/Android Studio.app/Contents/jbr/Contents/Home"; do
+    [ -x "$_jdk/bin/java" ] && { JAVA_HOME="$_jdk"; break; }
+  done
+  if [ -z "${JAVA_HOME:-}" ] && command -v java >/dev/null 2>&1; then
+    JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+  fi
+fi
+export JAVA_HOME
 
 case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) _host=windows-x86_64 ;;
-  Darwin)               _host=darwin-x86_64 ;;
-  *)                    _host=linux-x86_64 ;;
+  MINGW*|MSYS*|CYGWIN*) _host=windows-x86_64; export HOST_OS=windows; export EXE=.exe ;;
+  Darwin)               _host=darwin-x86_64;  export HOST_OS=macos;   export EXE= ;;
+  *)                    _host=linux-x86_64;   export HOST_OS=linux;   export EXE= ;;
 esac
+export NDK_HOST_TAG="$_host"
 export NDK_BIN="$ANDROID_NDK/toolchains/llvm/prebuilt/$_host/bin"
 export NDK_SYSROOT_LIB="$ANDROID_NDK/toolchains/llvm/prebuilt/$_host/sysroot/usr/lib/aarch64-linux-android"
 
@@ -72,3 +85,5 @@ adbs() {
 }
 # Local file arguments for adbs (push/install) in a form adb.exe understands.
 winpath() { cygpath -m "$1" 2>/dev/null || printf '%s\n' "$1"; }
+# Path in the form CMake and the Python tools expect (mixed on Windows, as is elsewhere).
+hostpath() { winpath "$1"; }

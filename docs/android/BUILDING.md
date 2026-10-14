@@ -1,8 +1,8 @@
 # Building the Android APK
 
-The Android build has only been done on **Windows with Git Bash**. The scripts use `cygpath` and
-Windows host tools (`dxc.exe`, `glslangValidator.exe`). Building on Linux or macOS needs small
-changes to `os/android/scripts/env.sh`, `build_native.sh` and `setup_host_tools.sh`.
+The Android build scripts run in **Git Bash on Windows** and on **x86_64 Linux**. They detect the
+host in `os/android/scripts/env.sh` and fetch the matching DXC and glslang into `out/host-tools`.
+macOS is untested.
 
 The generated C++ for the game is checked in, as it is upstream, so building needs no game files.
 
@@ -10,7 +10,7 @@ The generated C++ for the game is checked in, as it is upstream, so building nee
 
 | Tool | Version used |
 |---|---|
-| Git for Windows (Git Bash) | any recent |
+| Git for Windows (Git Bash) | any recent (Windows only; Linux uses its own shell) |
 | Python | 3.12 |
 | CMake | 3.31 (3.29 or newer is required) |
 | Ninja | 1.11 |
@@ -18,13 +18,14 @@ The generated C++ for the game is checked in, as it is upstream, so building nee
 | Android SDK platform | 35 |
 | **Android NDK** | **r29, `29.0.14206865`** (older NDKs lack `std::jthread` in libc++) |
 
-`os/android/scripts/env.sh` finds the SDK at `%LOCALAPPDATA%\Android\Sdk` and the JDK in
-`C:\Program Files\Android\Android Studio\jbr`. Override `ANDROID_HOME`, `ANDROID_NDK`, `NDK_VER` or
+`os/android/scripts/env.sh` finds the SDK at `%LOCALAPPDATA%\Android\Sdk` on Windows or
+`~/Android/Sdk` on Linux, and the JDK in Android Studio's `jbr` or a system JDK 17+
+(`/usr/lib/jvm/...`). On Linux `curl`, `tar` and `unzip` are also needed. Override `ANDROID_HOME`, `ANDROID_NDK`, `NDK_VER` or
 `JAVA_HOME` if yours are elsewhere.
 
 ## Steps
 
-All commands run in Git Bash from the repository root.
+All commands run in Git Bash (Windows) or any bash (Linux) from the repository root.
 
 ```bash
 # 1. Fetch the pinned dependencies and apply the source patches (as upstream)

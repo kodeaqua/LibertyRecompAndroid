@@ -11,13 +11,21 @@ JOBS="${1:-$(( $(nproc) > 3 ? $(nproc) - 2 : 1 ))}"
 
 [ -d "$ANDROID_NDK" ] || { echo "no NDK at $ANDROID_NDK"; exit 1; }
 
-python "$APP_DIR/scripts/materialize_symlinks.py"
+PYTHON="$(command -v python3 || command -v python)"
+"$PYTHON" "$APP_DIR/scripts/materialize_symlinks.py"
 "$APP_DIR/scripts/setup_host_tools.sh"
 
 # Snapdragon 865 and every Android 10+ arm64 device we target are ARMv8.2:
 # inline LSE atomics instead of outline-atomic calls, and native ELF TLS
 # (API 29+) instead of emulated TLS. Both are hot in the guest thread.
 CPU_FLAGS="-march=armv8.2-a -fno-emulated-tls"
+# Host shader tools: Windows ships dxc.exe next to its DLLs, the Linux/macOS DXC
+# keeps the compiler in bin/ and the shared libraries in lib/.
+if [ "$HOST_OS" = "windows" ]; then
+  DXC_LIB_DIR="$REPO/out/host-tools/dxc/bin/x64"
+else
+  DXC_LIB_DIR="$REPO/out/host-tools/dxc/lib"
+fi
 if [ ! -f "$BUILD_DIR/build.ninja" ] || ! grep -q -- "-fno-emulated-tls" "$BUILD_DIR/CMakeCache.txt"; then
   echo "== configuring $BUILD_TYPE in $BUILD_DIR"
   cmake -S "$REPO" -B "$BUILD_DIR" -G Ninja \
@@ -33,9 +41,9 @@ if [ ! -f "$BUILD_DIR/build.ninja" ] || ! grep -q -- "-fno-emulated-tls" "$BUILD
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DREXGLUE_ENABLE_TRACY=OFF \
-    -DGTA4_NATIVE_SPIRV_VAL="$(cygpath -m "$ANDROID_NDK/shader-tools/windows-x86_64/spirv-val.exe")" \
-    -DGTA4_NATIVE_GLSLANG_VALIDATOR="$(cygpath -m "$REPO/out/host-tools/glslang/bin/glslangValidator.exe")" \
-    -DGTA4_NATIVE_DXC_LIBRARY_PATH="$(cygpath -m "$REPO/out/host-tools/dxc/bin/x64")"
+    -DGTA4_NATIVE_SPIRV_VAL="$(hostpath "$ANDROID_NDK/shader-tools/$NDK_HOST_TAG/spirv-val$EXE")" \
+    -DGTA4_NATIVE_GLSLANG_VALIDATOR="$(hostpath "$REPO/out/host-tools/glslang/bin/glslangValidator$EXE")" \
+    -DGTA4_NATIVE_DXC_LIBRARY_PATH="$(hostpath "$DXC_LIB_DIR")"
 fi
 
 # Calls between unhooked recompiled functions bypass the weak sub_X aliases so
@@ -46,13 +54,13 @@ fi
 # them crashed in game code. DIRECT_CALLS_ENABLE=1 turns them on.
 DIRECT_CALLS="$REPO/glue/rexglue-sdk-main/gta4-recomp/tools/direct_calls.py"
 if [ "${DIRECT_CALLS_ENABLE:-0}" = "1" ]; then
-  python "$(cygpath -m "$DIRECT_CALLS")" apply
+  "$PYTHON" "$(hostpath "$DIRECT_CALLS")" apply
 else
-  python "$(cygpath -m "$DIRECT_CALLS")" undo
+  "$PYTHON" "$(hostpath "$DIRECT_CALLS")" undo
 fi
 echo "== building with $JOBS jobs"
 # Every behaviour-changing cvar must be in the hack registry (safe mode).
-python "$REPO/glue/rexglue-sdk-main/gta4-recomp/tools/check_hack_registry.py" || { echo "!! hack registry check failed"; exit 1; }
+"$PYTHON" "$REPO/glue/rexglue-sdk-main/gta4-recomp/tools/check_hack_registry.py" || { echo "!! hack registry check failed"; exit 1; }
 cmake --build "$BUILD_DIR" --target LibertyRecomp -- -j"$JOBS" || { echo "!! native build failed"; exit 1; }
 
 echo "== staging libraries"
@@ -77,7 +85,7 @@ echo "== checks"
 # A hook added after the hooked list was taken must not be bypassed.
 NM_OUT="$(mktemp)"
 "$NDK_BIN/llvm-nm" --defined-only "$BUILD_DIR/glue/gta4-recomp/libmain.so" > "$NM_OUT"
-python "$(cygpath -m "$DIRECT_CALLS")" check "$(cygpath -m "$NM_OUT")" || {
+"$PYTHON" "$(hostpath "$DIRECT_CALLS")" check "$(hostpath "$NM_OUT")" || {
   echo "!! run: direct_calls.py hooks <llvm-nm libmain.so> && direct_calls.py apply, then rebuild"; exit 1; }
 rm -f "$NM_OUT"
 "$NDK_BIN/llvm-nm" -D --defined-only "$JNILIBS/libmain.so" | grep -E ' SDL_main$' >/dev/null || {
