@@ -34,6 +34,9 @@ else
   CPU_FLAGS="-march=armv8-a -moutline-atomics -fno-emulated-tls"
 fi
 if [ ! -f "$BUILD_DIR/build.ninja" ] || ! grep -qF -- "CMAKE_CXX_FLAGS:STRING=$CPU_FLAGS" "$BUILD_DIR/CMakeCache.txt"; then
+  # Feature checks (e.g. snappy's CRC32 probe) are cached, so a cache made with other CPU
+  # flags would keep results that no longer hold.
+  rm -f "$BUILD_DIR/CMakeCache.txt"
   echo "== configuring $BUILD_TYPE in $BUILD_DIR"
   cmake -S "$REPO" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_C_FLAGS="$CPU_FLAGS" \
